@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>東華三院籃球隊 TWGHs Basketball Team | 簽到及出勤管理系統</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script>
+    // ========================================================
+    // 💡 步驟 3：在此處貼上你的 Google Apps Script Web App 網址：
+    // ========================================================
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbynaPITcoToBin0Momsvl6H8cANdUojW_80oWv8iEqpg-BebNHYR7xutKlrfCcrlKD1/exec";
+
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              navy: '#0B2046',
+              blue: '#1E3A8A',
+              orange: '#FF6B00',
+              orangeHover: '#E05300',
+              bgLight: '#F8FAFC',
+              cardBorder: '#E2E8F0'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-brand-bgLight text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-brand-orange selection:text-white">
+
+<div id="app" class="flex-1 flex flex-col">
+
+  <!-- 雲端同步 Loading 提示 -->
+  <div v-if="isLoading" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[99] flex flex-col items-center justify-center text-white">
+    <div class="w-12 h-12 border-4 border-brand-orange border-t-transparent rounded-full animate-spin mb-3"></div>
+    <div class="font-bold text-sm">正在與 Google 試算表連線同步...</div>
+  </div>
+
+  <!-- 頂部 Header & 導航 -->
+  <header class="bg-brand-navy text-white shadow-xl sticky top-0 z-50 border-b border-blue-950">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        
+        <div class="flex items-center space-x-3 cursor-pointer" @click="currentTab = 'calendar'">
+          <div class="w-10 h-10 bg-brand-orange rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
+            <i class="fa-solid fa-basketball text-xl animate-pulse"></i>
+          </div>
+          <div>
+            <div class="font-black text-lg tracking-wide leading-tight uppercase">
+              {{ siteConfig.teamNameMain }} <span class="text-brand-orange">{{ siteConfig.teamNameHighlight }}</span>
+            </div>
+            <div class="text-[10px] text-blue-200 tracking-widest font-semibold uppercase">
+              {{ siteConfig.subTitle }}
+            </div>
+          </div>
+        </div>
+
+        <nav class="hidden md:flex items-center space-x-1">
+          <button @click="currentTab = 'calendar'" :class="tabBtnClass('calendar')">
+            <i class="fa-regular fa-calendar-days mr-1.5"></i>活動日曆
+          </button>
+          <button @click="currentTab = 'checkin'" :class="tabBtnClass('checkin')">
+            <i class="fa-solid fa-clipboard-check mr-1.5"></i>場次簽到
+          </button>
+          <button @click="currentTab = 'roster'" :class="tabBtnClass('roster')">
+            <i class="fa-solid fa-users mr-1.5"></i>隊員陣容
+          </button>
+          <button @click="currentTab = 'stats'" :class="tabBtnClass('stats')">
+            <i class="fa-solid fa-chart-column mr-1.5"></i>出席率統計
+          </button>
+          <button @click="currentTab = 'admin'" :class="tabBtnClass('admin')">
+            <i class="fa-solid fa-shield-halved mr-1.5"></i>管理後台
+          </button>
+        </nav>
+
+        <div class="hidden sm:flex items-center space-x-3">
+          <div v-if="currentMember" class="flex items-center bg-blue-900/60 pl-2 pr-3 py-1.5 rounded-full border border-blue-700/60">
+            <span class="bg-brand-orange text-white text-xs font-black px-2 py-0.5 rounded-full mr-2">#{{ currentMember.jerseyNumber }}</span>
+            <span class="text-xs font-bold text-white mr-3">{{ currentMember.name }}</span>
+            <button @click="openPasswordModal" class="text-[11px] text-blue-200 hover:text-white underline mr-2">修改密碼</button>
+            <button @click="logoutMember" class="text-[11px] text-orange-300 hover:text-orange-400 font-bold">登出</button>
+          </div>
+          <div v-else class="flex items-center space-x-2">
+            <button @click="openAuthModal('login')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-900 hover:bg-blue-800 text-white transition border border-blue-700/40">
+              球員登入
+            </button>
+            <button @click="openAuthModal('register')" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-brand-orange hover:bg-brand-orangeHover text-white transition shadow-md shadow-orange-500/20">
+              新球員註冊
+            </button>
+          </div>
+        </div>
+
+        <div class="md:hidden flex items-center">
+          <button @click="mobileMenu = !mobileMenu" class="text-white hover:text-brand-orange text-xl p-2">
+            <i :class="mobileMenu ? 'fa-solid fa-xmark' : 'fa-solid fa-bars'"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 手機下拉選單 -->
+    <div v-if="mobileMenu" class="md:hidden bg-brand-navy border-t border-blue-900 px-4 py-3 space-y-2">
+      <div v-if="currentMember" class="p-3 bg-blue-950 rounded-xl text-xs flex justify-between items-center text-white mb-2">
+        <span class="font-bold">#{{ currentMember.jerseyNumber }} {{ currentMember.name }} ({{ currentMember.position }})</span>
+        <div class="space-x-2">
+          <button @click="openPasswordModal(); mobileMenu = false" class="underline text-blue-200">改密碼</button>
+          <button @click="logoutMember(); mobileMenu = false" class="text-brand-orange font-bold">登出</button>
+        </div>
+      </div>
+      <div v-else class="grid grid-cols-2 gap-2 mb-2">
+        <button @click="openAuthModal('login'); mobileMenu = false" class="py-2 text-xs font-bold rounded-lg bg-blue-900 text-white">球員登入</button>
+        <button @click="openAuthModal('register'); mobileMenu = false" class="py-2 text-xs font-bold rounded-lg bg-brand-orange text-white">新球員註冊</button>
+      </div>
+      <button @click="currentTab = 'calendar'; mobileMenu = false" class="block w-full text-left py-2 px-3 rounded-lg text-white hover:bg-blue-900">活動日曆</button>
+      <button @click="currentTab = 'checkin'; mobileMenu = false" class="block w-full text-left py-2 px-3 rounded-lg text-white hover:bg-blue-900">場次簽到</button>
+      <button @click="currentTab = 'roster'; mobileMenu = false" class="block w-full text-left py-2 px-3 rounded-lg text-white hover:bg-blue-900">隊員陣容</button>
+      <button @click="currentTab = 'stats'; mobileMenu = false" class="block w-full text-left py-2 px-3 rounded-lg text-white hover:bg-blue-900">出席率統計</button>
+      <button @click="currentTab = 'admin'; mobileMenu = false" class="block w-full text-left py-2 px-3 rounded-lg text-brand-orange font-bold hover:bg-blue-900">Admin 後台</button>
+    </div>
+  </header>
+
+  <!-- 數據概覽條 -->
+  <div class="bg-gradient-to-r from-blue-900 via-brand-navy to-slate-900 text-white py-6 px-4 border-b border-blue-900">
+    <div class="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div class="bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/10">
+        <div class="text-xs text-blue-200 font-medium">活躍球員人數</div>
+        <div class="text-2xl font-black text-white mt-1">{{ activeMembersCount }} <span class="text-xs font-normal text-slate-300">人</span></div>
+      </div>
+      <div class="bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/10">
+        <div class="text-xs text-blue-200 font-medium">球隊總排程</div>
+        <div class="text-2xl font-black text-brand-orange mt-1">{{ events.length }} <span class="text-xs font-normal text-slate-300">場 (賽{{ matchCount }}/練{{ trainingCount }})</span></div>
+      </div>
+      <div class="bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/10">
+        <div class="text-xs text-blue-200 font-medium">全隊平均出席率</div>
+        <div class="text-2xl font-black text-emerald-400 mt-1">{{ teamAvgRate }}%</div>
+      </div>
+      <div class="bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/10">
+        <div class="text-xs text-blue-200 font-medium">出席榜首 (MVP)</div>
+        <div class="text-xl font-black text-amber-300 mt-1 truncate">{{ topAttenderName }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主內容區 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- 1. 活動日曆 VIEW -->
+    <section v-if="currentTab === 'calendar'" class="space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-3xl shadow-sm border border-brand-cardBorder gap-4">
+        <div>
+          <h1 class="text-2xl font-black text-brand-navy flex items-center gap-2">
+            <span>📅 球隊賽程與訓練日曆</span>
+          </h1>
+          <p class="text-slate-500 text-xs mt-1">雲端數據即時同步，點選活動查看詳情或名單</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button @click="eventFilter = 'ALL'" :class="eventFilter === 'ALL' ? 'bg-brand-navy text-white' : 'bg-slate-100 text-slate-600'" class="px-3 py-1.5 rounded-xl text-xs font-bold transition">全部</button>
+          <button @click="eventFilter = 'match'" :class="eventFilter === 'match' ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-600'" class="px-3 py-1.5 rounded-xl text-xs font-bold transition">比賽</button>
+          <button @click="eventFilter = 'training'" :class="eventFilter === 'training' ? 'bg-brand-blue text-white' : 'bg-slate-100 text-slate-600'" class="px-3 py-1.5 rounded-xl text-xs font-bold transition">練球</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div v-for="evt in filteredEvents" :key="evt.id" 
+             @click="openEventModal(evt)"
+             class="bg-white rounded-3xl shadow-sm hover:shadow-xl border border-brand-cardBorder overflow-hidden cursor-pointer transition transform hover:-translate-y-1 flex flex-col justify-between group">
+          <div>
+            <div :class="evt.type === 'match' ? 'bg-brand-orange' : 'bg-brand-blue'" class="h-2 w-full"></div>
+            
+            <div class="p-6">
+              <div class="flex justify-between items-center mb-3">
+                <span :class="evt.type === 'match' ? 'bg-orange-50 text-brand-orange border-orange-200' : 'bg-blue-50 text-brand-blue border-blue-200'"
+                      class="text-[11px] font-black px-2.5 py-0.5 rounded-md border uppercase">
+                  {{ evt.type === 'match' ? '聯賽 MATCH' : '常規練球' }}
+                </span>
+                <span class="text-xs text-slate-400 font-semibold">
+                  <i class="fa-solid fa-users text-slate-400 mr-1"></i>出席 {{ getAttendanceCount(evt.id, 'present') }} 人
+                </span>
+              </div>
+
+              <h3 class="font-black text-lg text-slate-800 group-hover:text-brand-orange transition mb-3 leading-snug">
+                {{ evt.title }}
+              </h3>
+
+              <div class="space-y-2 text-xs text-slate-600">
+                <div class="flex items-center gap-2">
+                  <i class="fa-regular fa-clock text-brand-orange w-4"></i>
+                  <span>{{ evt.date }} ｜ {{ evt.time }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-location-dot text-brand-blue w-4"></i>
+                  <span class="truncate">{{ evt.location }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-xs">
+            <span class="text-slate-400">點擊看陣容及簽到</span>
+            <span class="text-brand-orange font-bold flex items-center gap-1 group-hover:translate-x-1 transition">
+              詳情 <i class="fa-solid fa-chevron-right text-[10px]"></i>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 場次簽到專區 (連線寫入 Google 試算表) -->
+    <section v-if="currentTab === 'checkin'" class="space-y-6">
+      <div class="bg-white p-6 rounded-3xl shadow-sm border border-brand-cardBorder flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 class="text-2xl font-black text-brand-navy">⚡ 賽事與練球快速簽到</h1>
+          <p class="text-slate-500 text-xs mt-1">
+            <span v-if="currentMember">
+              登入球員：<strong class="text-brand-orange">#{{ currentMember.jerseyNumber }} {{ currentMember.name }}</strong> 
+              （編號：{{ currentMember.staffId }} ｜ 位置：{{ currentMember.position }}）
+            </span>
+            <span v-else class="text-amber-600 font-semibold">
+              <i class="fa-solid fa-triangle-exclamation mr-1"></i>尚未登入！請先登入以記錄你的個人出勤。
+            </span>
+          </p>
+        </div>
+
+        <div v-if="!currentMember">
+          <button @click="openAuthModal('login')" class="px-4 py-2 bg-brand-orange hover:bg-brand-orangeHover text-white text-xs font-bold rounded-xl shadow transition">
+            登入以簽到
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div v-for="evt in events" :key="evt.id" 
+             class="bg-white rounded-3xl p-6 shadow-sm border border-brand-cardBorder flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <span :class="evt.type === 'match' ? 'bg-orange-100 text-brand-orange' : 'bg-blue-100 text-brand-blue'" class="text-[11px] font-black px-2.5 py-0.5 rounded-md">
+                {{ evt.type === 'match' ? '比賽' : '練球' }}
+              </span>
+              <span class="text-xs text-slate-400">
+                出席: <strong class="text-emerald-600">{{ getAttendanceCount(evt.id, 'present') }}</strong> ｜ 請假: <strong class="text-red-500">{{ getAttendanceCount(evt.id, 'absent') }}</strong>
+              </span>
+            </div>
+            <h3 class="font-bold text-base text-slate-800 mb-2">{{ evt.title }}</h3>
+            <p class="text-xs text-slate-500 mb-4 flex items-center gap-2">
+              <span><i class="fa-regular fa-calendar text-slate-400 mr-1"></i>{{ evt.date }} {{ evt.time }}</span>
+              <span>•</span>
+              <span class="truncate"><i class="fa-solid fa-map-pin text-slate-400 mr-1"></i>{{ evt.location }}</span>
+            </p>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100">
+            <div v-if="currentMember" class="flex items-center gap-2">
+              <button @click="setMyAttendance(evt.id, 'present')"
+                      :class="getMyStatus(evt.id) === 'present' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-500' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'"
+                      class="flex-1 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-check"></i> 出席
+              </button>
+
+              <button @click="setMyAttendance(evt.id, 'absent')"
+                      :class="getMyStatus(evt.id) === 'absent' ? 'bg-red-500 text-white shadow-md shadow-red-500/30 ring-2 ring-red-400' : 'bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-700'"
+                      class="flex-1 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-user-xmark"></i> 請假
+              </button>
+
+              <button @click="setMyAttendance(evt.id, 'late')"
+                      :class="getMyStatus(evt.id) === 'late' ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30 ring-2 ring-amber-400' : 'bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-700'"
+                      class="flex-1 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5">
+                <i class="fa-regular fa-clock"></i> 會遲到
+              </button>
+            </div>
+
+            <div v-else class="text-center py-2 bg-slate-50 rounded-xl text-xs text-slate-400 font-medium">
+              請登入以提交簽到狀態
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. ROSTER 隊員陣容 VIEW -->
+    <section v-if="currentTab === 'roster'" class="space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-3xl shadow-sm border border-brand-cardBorder gap-4">
+        <div>
+          <h1 class="text-2xl font-black text-brand-navy">👥 {{ siteConfig.subTitle }} - 隊員陣容 (Roster)</h1>
+          <p class="text-slate-500 text-xs mt-1">展示球員號碼、場上位置、帳號狀態與隊內聯絡資料</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-bold text-slate-500">位置篩選:</label>
+          <select v-model="positionFilter" class="p-2 border rounded-xl text-xs font-bold bg-white focus:ring-2 focus:ring-brand-blue outline-none">
+            <option value="ALL">全部位置</option>
+            <option value="控球後衛 (PG)">控球後衛 (PG)</option>
+            <option value="得分後衛 (SG)">得分後衛 (SG)</option>
+            <option value="小前鋒 (SF)">小前鋒 (SF)</option>
+            <option value="大前鋒 (PF)">大前鋒 (PF)</option>
+            <option value="中鋒 (C)">中鋒 (C)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div v-for="player in filteredMembers" :key="player.id"
+             :class="player.status === 'inactive' ? 'opacity-60 bg-slate-100 border-dashed border-red-300' : 'bg-white border-brand-cardBorder'"
+             class="rounded-3xl p-5 shadow-sm border hover:shadow-lg transition relative overflow-hidden group">
+          <div class="absolute -right-3 -bottom-3 text-7xl font-black text-slate-100 select-none group-hover:text-orange-50 transition pointer-events-none font-mono">
+            {{ player.jerseyNumber }}
+          </div>
+
+          <div class="flex justify-between items-start mb-4">
+            <span class="inline-block bg-brand-orange text-white font-black text-base px-3 py-1 rounded-xl font-mono shadow-sm">
+              #{{ player.jerseyNumber }}
+            </span>
+            <div class="flex flex-col items-end gap-1">
+              <span class="text-[11px] font-bold bg-blue-50 text-brand-blue px-2.5 py-0.5 rounded-lg border border-blue-100">
+                {{ player.position }}
+              </span>
+              <span v-if="player.status === 'inactive'" class="text-[10px] font-black text-red-600 bg-red-100 px-2 py-0.5 rounded">
+                已停用
+              </span>
+            </div>
+          </div>
+
+          <h3 class="font-black text-lg text-slate-800 mb-1 flex items-center gap-1.5">
+            <span>{{ player.name }}</span>
+          </h3>
+          <div class="text-xs text-slate-400 font-mono mb-4">職員號: {{ player.staffId }}</div>
+
+          <div class="pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-phone text-slate-400 w-3.5"></i>
+              <span>{{ player.phone }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-percent text-slate-400 w-3.5"></i>
+              <span>出席率：<strong class="text-brand-orange font-bold">{{ getPlayerRate(player.id) }}%</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 出席率統計 (Stats Page) -->
+    <section v-if="currentTab === 'stats'" class="space-y-6">
+      <div class="bg-white p-6 rounded-3xl shadow-sm border border-brand-cardBorder flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 class="text-2xl font-black text-brand-navy">📊 球員出勤率總排行 (Attendance Stats)</h1>
+          <p class="text-slate-500 text-xs mt-1">連線試算表動態計算出勤率，全隊即時同步</p>
+        </div>
+        <button @click="exportCSV" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5">
+          <i class="fa-solid fa-download"></i> 匯出出勤名單 (CSV)
+        </button>
+      </div>
+
+      <div class="bg-white rounded-3xl shadow-sm border border-brand-cardBorder overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs sm:text-sm text-slate-600">
+            <thead class="bg-slate-50 text-slate-500 uppercase font-black text-[11px] tracking-wider border-b">
+              <tr>
+                <th class="py-4 px-6 text-center w-16">排名</th>
+                <th class="py-4 px-6 text-center w-20">背號</th>
+                <th class="py-4 px-6">球員姓名</th>
+                <th class="py-4 px-6">位置</th>
+                <th class="py-4 px-6 text-center">狀態</th>
+                <th class="py-4 px-6 text-center">比賽出席 ({{ matchCount }}場)</th>
+                <th class="py-4 px-6 text-center">練球出席 ({{ trainingCount }}場)</th>
+                <th class="py-4 px-6 text-center">總計簽到</th>
+                <th class="py-4 px-6 w-52">出勤率進度</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="(stat, idx) in playerStatsLeaderboard" :key="stat.id" :class="stat.status === 'inactive' ? 'bg-slate-50/60 opacity-60' : 'hover:bg-slate-50/80'" class="transition">
+                <td class="py-4 px-6 text-center font-black">
+                  <span v-if="idx === 0" class="w-6 h-6 rounded-full bg-amber-400 text-white inline-flex items-center justify-center text-xs shadow-sm">1</span>
+                  <span v-else-if="idx === 1" class="w-6 h-6 rounded-full bg-slate-300 text-white inline-flex items-center justify-center text-xs shadow-sm">2</span>
+                  <span v-else-if="idx === 2" class="w-6 h-6 rounded-full bg-amber-600 text-white inline-flex items-center justify-center text-xs shadow-sm">3</span>
+                  <span v-else class="text-slate-400 font-mono text-xs">{{ idx + 1 }}</span>
+                </td>
+                <td class="py-4 px-6 text-center">
+                  <span class="bg-slate-100 text-slate-800 font-mono font-black text-xs px-2.5 py-1 rounded-lg">
+                    #{{ stat.jerseyNumber }}
+                  </span>
+                </td>
+                <td class="py-4 px-6 font-bold text-brand-navy">
+                  {{ stat.name }}
+                  <span class="block text-[10px] text-slate-400 font-mono">{{ stat.staffId }}</span>
+                </td>
+                <td class="py-4 px-6 text-slate-500 text-xs">{{ stat.position }}</td>
+                <td class="py-4 px-6 text-center">
+                  <span :class="stat.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'" class="text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {{ stat.status === 'active' ? '正常' : '已停用' }}
+                  </span>
+                </td>
+                <td class="py-4 px-6 text-center font-bold text-brand-orange">{{ stat.matchPresent }}</td>
+                <td class="py-4 px-6 text-center font-bold text-brand-blue">{{ stat.trainingPresent }}</td>
+                <td class="py-4 px-6 text-center font-black text-slate-700">{{ stat.totalPresent }} / {{ events.length }}</td>
+                <td class="py-4 px-6">
+                  <div class="flex items-center gap-3">
+                    <div class="flex-1 bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                      <div class="h-full rounded-full transition-all duration-500"
+                           :class="stat.rate >= 75 ? 'bg-emerald-500' : (stat.rate >= 50 ? 'bg-brand-orange' : 'bg-red-400')"
+                           :style="{ width: stat.rate + '%' }"></div>
+                    </div>
+                    <span class="text-xs font-black font-mono w-10 text-right">{{ stat.rate }}%</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. ADMIN 管理後台 (Protected) -->
+    <section v-if="currentTab === 'admin'" class="space-y-6">
+      <div v-if="!adminLoggedIn" class="max-w-md mx-auto my-12">
+        <div class="bg-white rounded-3xl shadow-xl border border-brand-cardBorder p-8 text-center">
+          <div class="w-16 h-16 bg-red-100 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">
+            <i class="fa-solid fa-lock"></i>
+          </div>
+          <h2 class="text-2xl font-black text-brand-navy mb-1">{{ siteConfig.teamNameMain }} 管理員通道</h2>
+          <p class="text-slate-500 text-xs mb-6">僅限領隊與教練登入管理活動、排程、系統名稱與球員權限</p>
+
+          <form @submit.prevent="loginAdmin" class="space-y-4">
+            <input v-model="adminPassInput" type="password" placeholder="請輸入管理密碼 (預設: admin123)"
+                   class="w-full px-4 py-3 rounded-xl border border-slate-200 text-center text-sm font-semibold tracking-widest focus:ring-2 focus:ring-brand-blue outline-none">
+            <p v-if="adminError" class="text-red-500 text-xs font-bold">{{ adminError }}</p>
+            <button type="submit" class="w-full py-3 bg-brand-navy hover:bg-blue-900 text-white font-bold rounded-xl shadow-md transition">
+              解鎖並進入後台
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div v-else class="space-y-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-3xl shadow-sm border border-brand-cardBorder gap-4">
+          <div>
+            <h1 class="text-2xl font-black text-brand-navy flex items-center gap-2">
+              <span>球隊控制後台 (Admin CMS)</span>
+              <span class="text-xs bg-emerald-100 text-emerald-600 px-2.5 py-0.5 rounded-full font-bold">雲端同步中</span>
+            </h1>
+            <p class="text-slate-500 text-xs mt-1">管理排程、活動出席、球員狀態、密碼與系統名稱設定</p>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <button @click="openAdminPasswordModal" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+              <i class="fa-solid fa-key text-brand-orange"></i> 更改 Admin 密碼
+            </button>
+            <button @click="logoutAdmin" class="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-600 transition">
+              安全登出 Admin
+            </button>
+          </div>
+        </div>
+
+        <div class="flex border-b border-slate-200 space-x-4">
+          <button @click="adminSubTab = 'events'" 
+                  :class="adminSubTab === 'events' ? 'border-b-2 border-brand-orange text-brand-orange font-black' : 'text-slate-500 hover:text-slate-700 font-bold'"
+                  class="pb-3 text-sm px-2 transition flex items-center gap-2">
+            <i class="fa-regular fa-calendar-days"></i> 活動與賽程管理
+          </button>
+          <button @click="adminSubTab = 'players'" 
+                  :class="adminSubTab === 'players' ? 'border-b-2 border-brand-orange text-brand-orange font-black' : 'text-slate-500 hover:text-slate-700 font-bold'"
+                  class="pb-3 text-sm px-2 transition flex items-center gap-2">
+            <i class="fa-solid fa-user-gear"></i> 球員名單、停用與重設密碼
+          </button>
+          <button @click="adminSubTab = 'settings'" 
+                  :class="adminSubTab === 'settings' ? 'border-b-2 border-brand-orange text-brand-orange font-black' : 'text-slate-500 hover:text-slate-700 font-bold'"
+                  class="pb-3 text-sm px-2 transition flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-brand-orange"></i> 頁面名稱設定 (Page Name)
+          </button>
+        </div>
+
+        <!-- 1. 活動管理 -->
+        <div v-if="adminSubTab === 'events'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-3xl shadow-sm border border-brand-cardBorder h-fit">
+            <h3 class="font-bold text-brand-navy mb-4 flex items-center gap-2">
+              <i class="fa-solid fa-plus-circle text-brand-orange"></i> 發佈新賽事/訓練
+            </h3>
+            <form @submit.prevent="createEvent" class="space-y-3.5">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">場次類型</label>
+                <select v-model="newEvent.type" class="w-full p-2.5 rounded-xl border text-xs bg-white">
+                  <option value="training">常規練球 (Training)</option>
+                  <option value="match">聯賽賽事 (Match)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">活動名稱</label>
+                <input v-model="newEvent.title" required type="text" placeholder="例: 慈善盃八強賽 vs 聖方濟" class="w-full p-2.5 rounded-xl border text-xs">
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">日期</label>
+                  <input v-model="newEvent.date" required type="date" class="w-full p-2.5 rounded-xl border text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">時間</label>
+                  <input v-model="newEvent.time" required type="text" placeholder="19:30-21:30" class="w-full p-2.5 rounded-xl border text-xs">
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">地點</label>
+                <input v-model="newEvent.location" required type="text" placeholder="修頓室內場" class="w-full p-2.5 rounded-xl border text-xs">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">戰術備註 / 球衣色系</label>
+                <textarea v-model="newEvent.details" rows="2" placeholder="著橘色客場球衣..." class="w-full p-2.5 rounded-xl border text-xs"></textarea>
+              </div>
+              <button type="submit" class="w-full py-2.5 bg-brand-orange hover:bg-brand-orangeHover text-white font-bold rounded-xl text-xs transition shadow-md shadow-orange-500/20">
+                立即發佈至 Google 試算表
+              </button>
+            </form>
+          </div>
+
+          <div class="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-brand-cardBorder">
+            <h3 class="font-bold text-brand-navy mb-4">排程清單 (共 {{ events.length }} 場)</h3>
+            <div class="space-y-3">
+              <div v-for="evt in events" :key="evt.id" class="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <span :class="evt.type === 'match' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'" class="text-[10px] font-bold px-2 py-0.5 rounded">
+                      {{ evt.type === 'match' ? '比賽' : '練球' }}
+                    </span>
+                    <span class="font-bold text-sm text-slate-800">{{ evt.title }}</span>
+                  </div>
+                  <div class="text-xs text-slate-500">
+                    {{ evt.date }} ｜ {{ evt.location }} ｜ 出席: {{ getAttendanceCount(evt.id, 'present') }} 人
+                  </div>
+                </div>
+                <button @click="deleteEvent(evt.id)" class="text-red-500 hover:text-red-700 p-2 text-sm" title="刪除活動">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 球員管理 -->
+        <div v-if="adminSubTab === 'players'" class="bg-white p-6 rounded-3xl shadow-sm border border-brand-cardBorder space-y-4">
+          <div class="flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-brand-navy text-lg">球員帳號權限與密碼維護</h3>
+              <p class="text-xs text-slate-400">所有操作即時寫入 Google 試算表 Members 分頁。</p>
+            </div>
+            <span class="text-xs font-bold bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl">
+              註冊球員：{{ members.length }} 人 ｜ 停用中：{{ inactiveMembersCount }} 人
+            </span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm text-slate-600">
+              <thead class="bg-slate-50 text-slate-500 uppercase font-black text-[11px] tracking-wider border-b">
+                <tr>
+                  <th class="py-3 px-4">背號</th>
+                  <th class="py-3 px-4">球員姓名</th>
+                  <th class="py-3 px-4">職員編號</th>
+                  <th class="py-3 px-4">守備位置</th>
+                  <th class="py-3 px-4">電話號碼</th>
+                  <th class="py-3 px-4 text-center">當前狀態</th>
+                  <th class="py-3 px-4 text-center">管理操作 (Action)</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="player in members" :key="player.id" :class="player.status === 'inactive' ? 'bg-red-50/40' : 'hover:bg-slate-50'">
+                  <td class="py-3 px-4 font-mono font-black text-brand-orange">#{{ player.jerseyNumber }}</td>
+                  <td class="py-3 px-4 font-bold text-brand-navy">{{ player.name }}</td>
+                  <td class="py-3 px-4 font-mono text-slate-500 text-xs">{{ player.staffId }}</td>
+                  <td class="py-3 px-4">{{ player.position }}</td>
+                  <td class="py-3 px-4">{{ player.phone }}</td>
+                  <td class="py-3 px-4 text-center">
+                    <span :class="player.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'" class="px-2.5 py-1 rounded-full text-[11px] font-black">
+                      {{ player.status === 'active' ? '正常' : '已停用' }}
+                    </span>
+                  </td>
+                  <td class="py-3 px-4 text-center">
+                    <div class="flex items-center justify-center gap-2">
+                      <button v-if="player.status === 'active'"
+                              @click="togglePlayerStatus(player)"
+                              class="px-2.5 py-1 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                        <i class="fa-solid fa-user-slash"></i> 停用
+                      </button>
+                      <button v-else
+                              @click="togglePlayerStatus(player)"
+                              class="px-2.5 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white border border-emerald-200 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                        <i class="fa-solid fa-user-check"></i> 啟用
+                      </button>
+
+                      <button @click="openResetPlayerPassword(player)"
+                              class="px-2.5 py-1 bg-blue-50 text-brand-blue hover:bg-brand-blue hover:text-white border border-blue-200 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                        <i class="fa-solid fa-key"></i> 重設密碼
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 3. 頁面名稱設定 -->
+        <div v-if="adminSubTab === 'settings'" class="max-w-3xl bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-brand-cardBorder space-y-6">
+          <div>
+            <h3 class="font-bold text-brand-navy text-xl flex items-center gap-2">
+              <i class="fa-solid fa-pen-nib text-brand-orange"></i> 自訂頁面標題與球隊名稱
+            </h3>
+            <p class="text-xs text-slate-400 mt-1">更新後將存入 Google 試算表 Config 分頁，全隊即時同步。</p>
+          </div>
+
+          <form @submit.prevent="saveSiteConfig" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">網頁分頁名稱 (Browser Tab Page Title)</label>
+              <input v-model="siteConfigForm.browserTitle" required type="text" class="w-full px-4 py-2.5 border rounded-xl text-xs font-medium focus:ring-2 focus:ring-brand-blue outline-none">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">球隊英文主名稱 (Main Title)</label>
+                <input v-model="siteConfigForm.teamNameMain" required type="text" class="w-full px-4 py-2.5 border rounded-xl text-xs font-bold uppercase focus:ring-2 focus:ring-brand-blue outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">球隊英文強調字 (Highlight Title - 橘色)</label>
+                <input v-model="siteConfigForm.teamNameHighlight" required type="text" class="w-full px-4 py-2.5 border rounded-xl text-xs font-bold text-brand-orange uppercase focus:ring-2 focus:ring-brand-blue outline-none">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">系統中文副標題 (Sub-title)</label>
+              <input v-model="siteConfigForm.subTitle" required type="text" class="w-full px-4 py-2.5 border rounded-xl text-xs font-medium focus:ring-2 focus:ring-brand-blue outline-none">
+            </div>
+
+            <button type="submit" class="w-full py-3 bg-brand-orange hover:bg-brand-orangeHover text-white font-bold rounded-xl text-xs shadow-md shadow-orange-500/20 transition flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-cloud-arrow-up"></i> 儲存至雲端試算表
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: 活動詳情彈窗 -->
+  <div v-if="selectedModalEvent" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl">
+      <div :class="selectedModalEvent.type === 'match' ? 'bg-brand-orange' : 'bg-brand-navy'" class="p-6 text-white relative">
+        <button @click="selectedModalEvent = null" class="absolute top-5 right-5 text-white/80 hover:text-white text-xl">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <span class="text-xs font-bold uppercase tracking-wider bg-black/20 px-2.5 py-0.5 rounded">
+          {{ selectedModalEvent.type === 'match' ? '正式聯賽' : '球隊訓練' }}
+        </span>
+        <h2 class="text-xl font-black mt-2">{{ selectedModalEvent.title }}</h2>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="space-y-1.5 text-xs text-slate-600">
+          <div><strong class="text-slate-800">日期時間：</strong>{{ selectedModalEvent.date }} ({{ selectedModalEvent.time }})</div>
+          <div><strong class="text-slate-800">地點場館：</strong>{{ selectedModalEvent.location }}</div>
+          <div><strong class="text-slate-800">教練指引：</strong>{{ selectedModalEvent.details || '無特殊備註。' }}</div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-3">
+          <div class="font-bold text-xs text-slate-800 mb-2">已回覆名單 ({{ getEventAttendees(selectedModalEvent.id).length }} 人)：</div>
+          <div class="max-h-40 overflow-y-auto space-y-1.5">
+            <div v-for="att in getEventAttendees(selectedModalEvent.id)" :key="att.id" class="flex justify-between items-center text-xs p-2 rounded-xl bg-slate-50">
+              <span class="font-bold">#{{ att.jerseyNumber }} {{ att.name }}</span>
+              <span :class="statusBadge(att.status).cls" class="px-2 py-0.5 rounded text-[10px] font-bold">
+                {{ statusBadge(att.status).text }}
+              </span>
+            </div>
+            <div v-if="getEventAttendees(selectedModalEvent.id).length === 0" class="text-xs text-slate-400 py-3 text-center">
+              尚無球員回覆此場次。
+            </div>
+          </div>
+        </div>
+
+        <button @click="selectedModalEvent = null" class="w-full py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200">
+          關閉視窗
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: 球員登入 / 註冊系統 -->
+  <div v-if="authModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative">
+      <button @click="authModal.show = false" class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 text-xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="text-center mb-6">
+        <h2 class="text-2xl font-black text-brand-navy">
+          {{ authModal.mode === 'login' ? '球員登入' : '新球員登記' }}
+        </h2>
+        <p class="text-xs text-slate-400 mt-1">
+          {{ authModal.mode === 'login' ? '輸入職員編號及密碼' : '設定球衣背號、位置及個人資料' }}
+        </p>
+      </div>
+
+      <form @submit.prevent="handleAuthSubmit" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">職員編號 (Staff ID)</label>
+          <input v-model="authForm.staffId" required type="text" placeholder="例: CRT-010" 
+                 class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-brand-orange outline-none">
+        </div>
+
+        <div v-if="authModal.mode === 'register'" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">球員全名 (Full Name)</label>
+            <input v-model="authForm.name" required type="text" placeholder="例: 張家輝" 
+                   class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-brand-orange outline-none">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">球衣背號 (Jersey #)</label>
+              <input v-model="authForm.jerseyNumber" required type="number" min="0" max="99" placeholder="10" 
+                     class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-black text-brand-orange focus:ring-2 focus:ring-brand-orange outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">場上位置 (Position)</label>
+              <select v-model="authForm.position" required class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-brand-orange outline-none">
+                <option value="控球後衛 (PG)">控球後衛 (PG)</option>
+                <option value="得分後衛 (SG)">得分後衛 (SG)</option>
+                <option value="小前鋒 (SF)">小前鋒 (SF)</option>
+                <option value="大前鋒 (PF)">大前鋒 (PF)</option>
+                <option value="中鋒 (C)">中鋒 (C)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">聯絡電話 (Phone)</label>
+            <input v-model="authForm.phone" required type="tel" placeholder="98765432" 
+                   class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-brand-orange outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">密碼 (Password)</label>
+          <input v-model="authForm.password" required type="password" placeholder="輸入密碼" 
+                 class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-brand-orange outline-none">
+        </div>
+
+        <p v-if="authError" class="text-xs text-red-500 font-bold">{{ authError }}</p>
+
+        <button type="submit" class="w-full py-3 bg-brand-orange hover:bg-brand-orangeHover text-white font-bold rounded-xl shadow-md text-xs transition mt-2">
+          {{ authModal.mode === 'login' ? '登入球隊' : '註冊並寫入雲端' }}
+        </button>
+      </form>
+
+      <div class="mt-4 text-center">
+        <button @click="toggleAuthMode" class="text-xs text-brand-navy hover:underline font-bold">
+          {{ authModal.mode === 'login' ? '新球員？點此登記註冊' : '已有帳號？返回登入' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: 球員自己修改密碼 -->
+  <div v-if="passwordModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl relative">
+      <button @click="passwordModal.show = false" class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 text-xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <h3 class="text-lg font-black text-brand-navy mb-1">修改球員個人密碼</h3>
+      <p class="text-xs text-slate-400 mb-4">同步更新至 Google 試算表</p>
+
+      <form @submit.prevent="submitPasswordChange" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">舊密碼</label>
+          <input v-model="passwordForm.oldPassword" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">新密碼</label>
+          <input v-model="passwordForm.newPassword" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">確認新密碼</label>
+          <input v-model="passwordForm.confirmPassword" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+
+        <p v-if="passwordError" class="text-xs text-red-500 font-bold">{{ passwordError }}</p>
+
+        <button type="submit" class="w-full py-2.5 bg-brand-navy hover:bg-blue-900 text-white font-bold rounded-xl text-xs transition">
+          確認變更
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADMIN 修改自身管理密碼 -->
+  <div v-if="adminPasswordModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl relative">
+      <button @click="adminPasswordModal.show = false" class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 text-xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <h3 class="text-lg font-black text-brand-navy mb-1 flex items-center gap-2">
+        <i class="fa-solid fa-shield-halved text-brand-orange"></i> 變更 Admin 管理員密碼
+      </h3>
+      <p class="text-xs text-slate-400 mb-4">修改後將儲存至 Google 試算表</p>
+
+      <form @submit.prevent="submitAdminPasswordChange" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">目前管理密碼</label>
+          <input v-model="adminPasswordModal.oldPass" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">新管理密碼</label>
+          <input v-model="adminPasswordModal.newPass" required type="password" placeholder="至少 4 個字元" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">確認新管理密碼</label>
+          <input v-model="adminPasswordModal.confirmPass" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+
+        <p v-if="adminPasswordModal.error" class="text-xs text-red-500 font-bold">{{ adminPasswordModal.error }}</p>
+
+        <button type="submit" class="w-full py-2.5 bg-brand-orange hover:bg-brand-orangeHover text-white font-bold rounded-xl text-xs transition shadow-md">
+          儲存至 Google 試算表
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADMIN 重設指定球員密碼 -->
+  <div v-if="resetPlayerModal.show" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl relative">
+      <button @click="resetPlayerModal.show = false" class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 text-xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <h3 class="text-lg font-black text-brand-navy mb-1 flex items-center gap-1.5">
+        <i class="fa-solid fa-user-pen text-brand-orange"></i> 重設球員密碼
+      </h3>
+      <p class="text-xs text-slate-400 mb-4" v-if="resetPlayerModal.player">
+        為 <strong class="text-brand-orange font-bold">#{{ resetPlayerModal.player.jerseyNumber }} {{ resetPlayerModal.player.name }}</strong> 設定新密碼
+      </p>
+
+      <form @submit.prevent="submitResetPlayerPassword" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">新設定密碼</label>
+          <input v-model="resetPlayerModal.newPass" required type="password" placeholder="請輸入欲指派的新密碼" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+
+        <p v-if="resetPlayerModal.error" class="text-xs text-red-500 font-bold">{{ resetPlayerModal.error }}</p>
+
+        <button type="submit" class="w-full py-2.5 bg-brand-navy hover:bg-blue-900 text-white font-bold rounded-xl text-xs transition">
+          確定重設並套用
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- Vue 3 核心邏輯 (串接 Google Apps Script API) -->
+<script>
+  const { createApp, ref, computed, watch, onMounted } = Vue;
+
+  createApp({
+    setup() {
+      const isLoading = ref(false);
+      const currentTab = ref('calendar');
+      const mobileMenu = ref(false);
+
+      // 預設備份資料 (當未設定網址時顯示)
+      const siteConfig = ref({
+        teamNameMain: 'TWGHs',
+        teamNameHighlight: 'BASKETBALL',
+        subTitle: '東華三院籃球隊 出勤與管理系統',
+        browserTitle: '東華三院籃球隊 TWGHs Basketball Team | 簽到及出勤管理系統'
+      });
+      const siteConfigForm = ref({ ...siteConfig.value });
+      const adminMasterPassword = ref('admin123');
+
+      const events = ref([]);
+      const members = ref([]);
+      const attendances = ref([]);
+      const currentMember = ref(null);
+
+      // 當頁面標題改變時，同步更新瀏覽器 Tab 標籤
+      watch(() => siteConfig.value.browserTitle, (newVal) => {
+        document.title = newVal;
+      }, { immediate: true });
+
+      // --- Google 試算表 API 串接函式 ---
+      const fetchGoogleData = async () => {
+        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("請將你剛才複製")) {
+          console.warn("⚠️ 尚未設定 GOOGLE_SCRIPT_URL，將使用離線展示數據。");
+          return;
+        }
+
+        isLoading.value = true;
+        try {
+          const res = await fetch(GOOGLE_SCRIPT_URL);
+          const json = await res.json();
+          if (json.success) {
+            events.value = json.data.events || [];
+            members.value = json.data.members || [];
+            attendances.value = json.data.attendances || [];
+            if (json.data.config) {
+              siteConfig.value = {
+                teamNameMain: json.data.config.teamNameMain || 'TWGHs',
+                teamNameHighlight: json.data.config.teamNameHighlight || 'BASKETBALL',
+                subTitle: json.data.config.subTitle || '東華三院籃球隊 出勤與管理系統',
+                browserTitle: json.data.config.browserTitle || '東華三院籃球隊'
+              };
+              siteConfigForm.value = { ...siteConfig.value };
+              if (json.data.config.adminPassword) {
+                adminMasterPassword.value = String(json.data.config.adminPassword);
+              }
+            }
+          }
+        } catch (e) {
+          console.error("連線 Google 試算表失敗:", e);
+        } finally {
+          isLoading.value = false;
+        }
+      };
+
+      const postGoogleAction = async (action, data = {}) => {
+        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("請將你剛才複製")) {
+          return { success: true }; // 離線模擬
+        }
+
+        isLoading.value = true;
+        try {
+          const res = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action, ...data })
+          });
+          const json = await res.json();
+          await fetchGoogleData(); // 操作完畢後重新抓取最新資料庫
+          return json;
+        } catch (e) {
+          console.error("寫入 Google 試算表失敗:", e);
+          return { success: false };
+        } finally {
+          isLoading.value = false;
+        }
+      };
+
+      onMounted(() => {
+        fetchGoogleData();
+      });
+
+      // 篩選與狀態
+      const eventFilter = ref('ALL');
+      const positionFilter = ref('ALL');
+      const selectedModalEvent = ref(null);
+
+      // Auth
+      const authModal = ref({ show: false, mode: 'login' });
+      const authForm = ref({ staffId: '', name: '', jerseyNumber: '', position: '控球後衛 (PG)', phone: '', password: '' });
+      const authError = ref('');
+
+      // 密碼彈窗
+      const passwordModal = ref({ show: false });
+      const passwordForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      const passwordError = ref('');
+
+      // Admin 後台狀態
+      const adminLoggedIn = ref(false);
+      const adminPassInput = ref('');
+      const adminError = ref('');
+      const adminSubTab = ref('events');
+      const newEvent = ref({ type: 'match', title: '', date: '', time: '', location: '', details: '' });
+
+      const adminPasswordModal = ref({ show: false, oldPass: '', newPass: '', confirmPass: '', error: '' });
+      const resetPlayerModal = ref({ show: false, player: null, newPass: '', error: '' });
+
+      const tabBtnClass = (tab) => {
+        return currentTab.value === tab
+          ? 'px-3.5 py-1.5 rounded-xl text-xs font-black bg-brand-orange text-white shadow-md shadow-orange-500/20'
+          : 'px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-blue-900 transition';
+      };
+
+      // 簽到狀態邏輯
+      const getMyStatus = (eventId) => {
+        if (!currentMember.value) return null;
+        const record = attendances.value.find(a => Number(a.eventId) === Number(eventId) && Number(a.memberId) === Number(currentMember.value.id));
+        return record ? record.status : null;
+      };
+
+      const setMyAttendance = async (eventId, status) => {
+        if (!currentMember.value) {
+          openAuthModal('login');
+          return;
+        }
+
+        if (currentMember.value.status === 'inactive') {
+          alert('您的球員帳號已被管理員停用，無法進行簽到！');
+          logoutMember();
+          return;
+        }
+
+        await postGoogleAction('setAttendance', {
+          eventId: eventId,
+          memberId: currentMember.value.id,
+          status: status
+        });
+      };
+
+      const getAttendanceCount = (eventId, status) => {
+        return attendances.value.filter(a => Number(a.eventId) === Number(eventId) && a.status === status).length;
+      };
+
+      const getEventAttendees = (eventId) => {
+        return attendances.value
+          .filter(a => Number(a.eventId) === Number(eventId))
+          .map(a => {
+            const mem = members.value.find(m => Number(m.id) === Number(a.memberId));
+            return {
+              id: a.id,
+              name: mem ? mem.name : '未知球員',
+              jerseyNumber: mem ? mem.jerseyNumber : '?',
+              status: a.status
+            };
+          });
+      };
+
+      const statusBadge = (st) => {
+        if (st === 'present') return { text: '出席', cls: 'bg-emerald-100 text-emerald-700' };
+        if (st === 'absent') return { text: '請假', cls: 'bg-red-100 text-red-600' };
+        if (st === 'late') return { text: '遲到', cls: 'bg-amber-100 text-amber-700' };
+        return { text: '待定', cls: 'bg-slate-100 text-slate-600' };
+      };
+
+      const matchCount = computed(() => events.value.filter(e => e.type === 'match').length);
+      const trainingCount = computed(() => events.value.filter(e => e.type === 'training').length);
+      const activeMembersCount = computed(() => members.value.filter(m => m.status === 'active').length);
+      const inactiveMembersCount = computed(() => members.value.filter(m => m.status === 'inactive').length);
+
+      const getPlayerRate = (memberId) => {
+        const total = events.value.length;
+        if (total === 0) return 0;
+        const presentCount = attendances.value.filter(a => Number(a.memberId) === Number(memberId) && (a.status === 'present' || a.status === 'late')).length;
+        return Math.round((presentCount / total) * 100);
+      };
+
+      const playerStatsLeaderboard = computed(() => {
+        const totalEvents = events.value.length;
+        return members.value.map(mem => {
+          const myAtt = attendances.value.filter(a => Number(a.memberId) === Number(mem.id) && (a.status === 'present' || a.status === 'late'));
+          const myAttEventIds = myAtt.map(a => Number(a.eventId));
+
+          let matchPresent = 0;
+          let trainingPresent = 0;
+          myAttEventIds.forEach(eid => {
+            const ev = events.value.find(e => Number(e.id) === Number(eid));
+            if (ev?.type === 'match') matchPresent++;
+            if (ev?.type === 'training') trainingPresent++;
+          });
+
+          const totalPresent = myAtt.length;
+          const rate = totalEvents > 0 ? Math.round((totalPresent / totalEvents) * 100) : 0;
+
+          return {
+            ...mem,
+            matchPresent,
+            trainingPresent,
+            totalPresent,
+            rate
+          };
+        }).sort((a, b) => b.rate - a.rate);
+      });
+
+      const teamAvgRate = computed(() => {
+        if (members.value.length === 0) return 0;
+        const activeList = playerStatsLeaderboard.value.filter(p => p.status === 'active');
+        if (activeList.length === 0) return 0;
+        const sum = activeList.reduce((acc, curr) => acc + curr.rate, 0);
+        return Math.round(sum / activeList.length);
+      });
+
+      const topAttenderName = computed(() => {
+        const activeLeader = playerStatsLeaderboard.value.find(p => p.status === 'active');
+        return activeLeader ? `#${activeLeader.jerseyNumber} ${activeLeader.name}` : '暫無';
+      });
+
+      const filteredEvents = computed(() => {
+        if (eventFilter.value === 'ALL') return events.value;
+        return events.value.filter(e => e.type === eventFilter.value);
+      });
+
+      const filteredMembers = computed(() => {
+        if (positionFilter.value === 'ALL') return members.value;
+        return members.value.filter(m => m.position === positionFilter.value);
+      });
+
+      const openEventModal = (evt) => {
+        selectedModalEvent.value = evt;
+      };
+
+      const openAuthModal = (mode) => {
+        authModal.value.mode = mode;
+        authModal.value.show = true;
+        authError.value = '';
+        authForm.value = { staffId: '', name: '', jerseyNumber: '', position: '控球後衛 (PG)', phone: '', password: '' };
+      };
+
+      const toggleAuthMode = () => {
+        authModal.value.mode = authModal.value.mode === 'login' ? 'register' : 'login';
+        authError.value = '';
+      };
+
+      const handleAuthSubmit = async () => {
+        authError.value = '';
+        const cleanStaffId = authForm.value.staffId.trim().toUpperCase();
+
+        if (authModal.value.mode === 'login') {
+          const user = members.value.find(m => String(m.staffId).toUpperCase() === cleanStaffId);
+          if (!user || String(user.password) !== String(authForm.value.password)) {
+            authError.value = '職員編號或密碼不正確！';
+            return;
+          }
+          if (user.status === 'inactive') {
+            authError.value = '⚠️ 此球員帳號已被管理員停用，無法登入！請聯絡教練。';
+            return;
+          }
+          currentMember.value = user;
+          authModal.value.show = false;
+        } else {
+          if (members.value.some(m => String(m.staffId).toUpperCase() === cleanStaffId)) {
+            authError.value = '此職員編號已被登記！';
+            return;
+          }
+          if (members.value.some(m => Number(m.jerseyNumber) === Number(authForm.value.jerseyNumber))) {
+            authError.value = `球衣背號 #${authForm.value.jerseyNumber} 已有隊友使用，請換一個！`;
+            return;
+          }
+
+          await postGoogleAction('registerMember', {
+            member: {
+              staffId: cleanStaffId,
+              name: authForm.value.name,
+              jerseyNumber: authForm.value.jerseyNumber,
+              position: authForm.value.position,
+              phone: authForm.value.phone,
+              password: authForm.value.password
+            }
+          });
+
+          const created = members.value.find(m => String(m.staffId).toUpperCase() === cleanStaffId);
+          if (created) currentMember.value = created;
+
+          alert(`🎉 註冊成功並已寫入 Google 試算表！`);
+          authModal.value.show = false;
+        }
+      };
+
+      const logoutMember = () => {
+        currentMember.value = null;
+      };
+
+      const openPasswordModal = () => {
+        passwordModal.value.show = true;
+        passwordError.value = '';
+        passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' };
+      };
+
+      const submitPasswordChange = async () => {
+        if (!currentMember.value) return;
+        if (passwordForm.value.oldPassword !== currentMember.value.password) {
+          passwordError.value = '目前舊密碼錯誤！';
+          return;
+        }
+        if (passwordForm.value.newPassword.length < 4) {
+          passwordError.value = '新密碼至少需 4 個字符！';
+          return;
+        }
+        if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+          passwordError.value = '兩次輸入的新密碼不一致！';
+          return;
+        }
+
+        await postGoogleAction('changePlayerPassword', {
+          memberId: currentMember.value.id,
+          newPassword: passwordForm.value.newPassword
+        });
+
+        currentMember.value.password = passwordForm.value.newPassword;
+        passwordModal.value.show = false;
+        alert('密碼已成功更新至 Google 試算表！');
+      };
+
+      const exportCSV = () => {
+        let csv = '排名,背號,球員姓名,職員號,位置,狀態,比賽出席,練球出席,總簽到次數,出席率\n';
+        playerStatsLeaderboard.value.forEach((p, i) => {
+          csv += `${i+1},#${p.jerseyNumber},${p.name},${p.staffId},${p.position},${p.status === 'active' ? '正常' : '已停用'},${p.matchPresent},${p.trainingPresent},${p.totalPresent},${p.rate}%\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${siteConfig.value.teamNameMain}_Attendance_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+      };
+
+      const loginAdmin = () => {
+        if (String(adminPassInput.value) === String(adminMasterPassword.value)) {
+          adminLoggedIn.value = true;
+          adminError.value = '';
+          adminPassInput.value = '';
+        } else {
+          adminError.value = '管理員密碼錯誤！';
+        }
+      };
+
+      const logoutAdmin = () => {
+        adminLoggedIn.value = false;
+      };
+
+      const saveSiteConfig = async () => {
+        await postGoogleAction('saveConfig', {
+          config: {
+            ...siteConfigForm.value,
+            adminPassword: adminMasterPassword.value
+          }
+        });
+        siteConfig.value = { ...siteConfigForm.value };
+        alert(`🎉 系統名稱已成功更新並寫入雲端！`);
+      };
+
+      const openAdminPasswordModal = () => {
+        adminPasswordModal.value = { show: true, oldPass: '', newPass: '', confirmPass: '', error: '' };
+      };
+
+      const submitAdminPasswordChange = async () => {
+        if (String(adminPasswordModal.value.oldPass) !== String(adminMasterPassword.value)) {
+          adminPasswordModal.value.error = '目前管理密碼不正確！';
+          return;
+        }
+        if (adminPasswordModal.value.newPass.length < 4) {
+          adminPasswordModal.value.error = '新密碼至少需要 4 個字元！';
+          return;
+        }
+        if (adminPasswordModal.value.newPass !== adminPasswordModal.value.confirmPass) {
+          adminPasswordModal.value.error = '兩次輸入的新管理密碼不相符！';
+          return;
+        }
+
+        adminMasterPassword.value = adminPasswordModal.value.newPass;
+        await postGoogleAction('saveConfig', {
+          config: {
+            ...siteConfig.value,
+            adminPassword: adminMasterPassword.value
+          }
+        });
+        adminPasswordModal.value.show = false;
+        alert('🎉 Admin 管理密碼修改成功並已存入 Google 試算表！');
+      };
+
+      const openResetPlayerPassword = (player) => {
+        resetPlayerModal.value = { show: true, player: player, newPass: '', error: '' };
+      };
+
+      const submitResetPlayerPassword = async () => {
+        if (!resetPlayerModal.value.newPass || resetPlayerModal.value.newPass.length < 4) {
+          resetPlayerModal.value.error = '新密碼長度至少需 4 個字元！';
+          return;
+        }
+
+        await postGoogleAction('changePlayerPassword', {
+          memberId: resetPlayerModal.value.player.id,
+          newPassword: resetPlayerModal.value.newPass
+        });
+
+        alert(`已成功為球員重設密碼！`);
+        resetPlayerModal.value.show = false;
+      };
+
+      const createEvent = async () => {
+        await postGoogleAction('createEvent', {
+          event: { ...newEvent.value }
+        });
+        alert('新活動已發佈並存入 Google 試算表！');
+        newEvent.value = { type: 'match', title: '', date: '', time: '', location: '', details: '' };
+      };
+
+      const deleteEvent = async (id) => {
+        if (confirm('確定刪除此場次？試算表內記錄將一併移除。')) {
+          await postGoogleAction('deleteEvent', { eventId: id });
+        }
+      };
+
+      const togglePlayerStatus = async (player) => {
+        const targetStatus = player.status === 'active' ? 'inactive' : 'active';
+        const actionText = targetStatus === 'inactive' ? '停用' : '重新啟用';
+        
+        if (confirm(`確定要${actionText}球員「#${player.jerseyNumber} ${player.name}」的帳號嗎？`)) {
+          await postGoogleAction('togglePlayerStatus', {
+            memberId: player.id,
+            status: targetStatus
+          });
+
+          if (targetStatus === 'inactive' && currentMember.value && Number(currentMember.value.id) === Number(player.id)) {
+            logoutMember();
+          }
+        }
+      };
+
+      return {
+        isLoading,
+        currentTab,
+        mobileMenu,
+        siteConfig,
+        siteConfigForm,
+        saveSiteConfig,
+        events,
+        members,
+        currentMember,
+        eventFilter,
+        positionFilter,
+        filteredEvents,
+        filteredMembers,
+        selectedModalEvent,
+        authModal,
+        authForm,
+        authError,
+        passwordModal,
+        passwordForm,
+        passwordError,
+        adminLoggedIn,
+        adminPassInput,
+        adminError,
+        adminSubTab,
+        adminMasterPassword,
+        adminPasswordModal,
+        resetPlayerModal,
+        newEvent,
+        matchCount,
+        trainingCount,
+        activeMembersCount,
+        inactiveMembersCount,
+        teamAvgRate,
+        topAttenderName,
+        playerStatsLeaderboard,
+        tabBtnClass,
+        getMyStatus,
+        setMyAttendance,
+        getAttendanceCount,
+        getEventAttendees,
+        statusBadge,
+        getPlayerRate,
+        openEventModal,
+        openAuthModal,
+        toggleAuthMode,
+        handleAuthSubmit,
+        logoutMember,
+        openPasswordModal,
+        submitPasswordChange,
+        exportCSV,
+        loginAdmin,
+        logoutAdmin,
+        openAdminPasswordModal,
+        submitAdminPasswordChange,
+        openResetPlayerPassword,
+        submitResetPlayerPassword,
+        createEvent,
+        deleteEvent,
+        togglePlayerStatus
+      };
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>
