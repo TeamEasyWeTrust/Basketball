@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>東華三院籃球隊 TWGHs Basketball Team | 簽到及出勤管理系統</title>
+  <title>Team Easy Basketball Team | 簽到及出勤管理系統</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Vue 3 -->
@@ -15,7 +15,7 @@
     // ========================================================
     // 💡 步驟 3：在此處貼上你的 Google Apps Script Web App 網址：
     // ========================================================
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbynaPITcoToBin0Momsvl6H8cANdUojW_80oWv8iEqpg-BebNHYR7xutKlrfCcrlKD1/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwJoz5iiqNXEZthEfZqufBcTXyxtHUvKsN5WCRP96cMmAzTEKL1IqMhx_Yd5CurCAqZGg/exec";
 
     tailwind.config = {
       theme: {
@@ -332,7 +332,7 @@
           <h3 class="font-black text-lg text-slate-800 mb-1 flex items-center gap-1.5">
             <span>{{ player.name }}</span>
           </h3>
-          <div class="text-xs text-slate-400 font-mono mb-4">職員號: {{ player.staffId }}</div>
+          <div class="text-xs text-slate-400 font-mono mb-4">球員號: {{ player.staffId }}</div>
 
           <div class="pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
             <div class="flex items-center gap-2">
@@ -430,7 +430,7 @@
           <p class="text-slate-500 text-xs mb-6">僅限領隊與教練登入管理活動、排程、系統名稱與球員權限</p>
 
           <form @submit.prevent="loginAdmin" class="space-y-4">
-            <input v-model="adminPassInput" type="password" placeholder="請輸入管理密碼 (預設: admin123)"
+            <input v-model="adminPassInput" type="password" placeholder="請輸入管理Pin"
                    class="w-full px-4 py-3 rounded-xl border border-slate-200 text-center text-sm font-semibold tracking-widest focus:ring-2 focus:ring-brand-blue outline-none">
             <p v-if="adminError" class="text-red-500 text-xs font-bold">{{ adminError }}</p>
             <button type="submit" class="w-full py-3 bg-brand-navy hover:bg-blue-900 text-white font-bold rounded-xl shadow-md transition">
@@ -452,7 +452,7 @@
           
           <div class="flex items-center gap-2">
             <button @click="openAdminPasswordModal" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
-              <i class="fa-solid fa-key text-brand-orange"></i> 更改 Admin 密碼
+              <i class="fa-solid fa-key text-brand-orange"></i> 更改 Admin Pin
             </button>
             <button @click="logoutAdmin" class="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-600 transition">
               安全登出 Admin
@@ -469,7 +469,7 @@
           <button @click="adminSubTab = 'players'" 
                   :class="adminSubTab === 'players' ? 'border-b-2 border-brand-orange text-brand-orange font-black' : 'text-slate-500 hover:text-slate-700 font-bold'"
                   class="pb-3 text-sm px-2 transition flex items-center gap-2">
-            <i class="fa-solid fa-user-gear"></i> 球員名單、停用與重設密碼
+            <i class="fa-solid fa-user-gear"></i> 球員名單、停用與重設Pin
           </button>
           <button @click="adminSubTab = 'settings'" 
                   :class="adminSubTab === 'settings' ? 'border-b-2 border-brand-orange text-brand-orange font-black' : 'text-slate-500 hover:text-slate-700 font-bold'"
@@ -595,7 +595,7 @@
 
                       <button @click="openResetPlayerPassword(player)"
                               class="px-2.5 py-1 bg-blue-50 text-brand-blue hover:bg-brand-blue hover:text-white border border-blue-200 rounded-lg text-xs font-bold transition flex items-center gap-1">
-                        <i class="fa-solid fa-key"></i> 重設密碼
+                        <i class="fa-solid fa-key"></i> 重設Pin
                       </button>
                     </div>
                   </td>
@@ -701,28 +701,28 @@
           {{ authModal.mode === 'login' ? '球員登入' : '新球員登記' }}
         </h2>
         <p class="text-xs text-slate-400 mt-1">
-          {{ authModal.mode === 'login' ? '輸入職員編號及密碼' : '設定球衣背號、位置及個人資料' }}
+          {{ authModal.mode === 'login' ? '輸入球員編號及Pin' : '設定球衣背號、位置及個人資料' }}
         </p>
       </div>
 
       <form @submit.prevent="handleAuthSubmit" class="space-y-3.5">
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">職員編號 (Staff ID)</label>
+          <label class="block text-xs font-bold text-slate-600 mb-1">球員登入名稱 (User ID)</label>
           <input v-model="authForm.staffId" required type="text" placeholder="例: CRT-010" 
                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-brand-orange outline-none">
         </div>
 
         <div v-if="authModal.mode === 'register'" class="space-y-3.5">
           <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">球員全名 (Full Name)</label>
-            <input v-model="authForm.name" required type="text" placeholder="例: 張家輝" 
+            <label class="block text-xs font-bold text-slate-600 mb-1">球員名 (Name)</label>
+            <input v-model="authForm.name" required type="text" placeholder="例: Lebron James" 
                    class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-brand-orange outline-none">
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-slate-600 mb-1">球衣背號 (Jersey #)</label>
-              <input v-model="authForm.jerseyNumber" required type="number" min="0" max="99" placeholder="10" 
+              <input v-model="authForm.jerseyNumber" required type="number" min="0" max="199" placeholder="10" 
                      class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-black text-brand-orange focus:ring-2 focus:ring-brand-orange outline-none">
             </div>
             <div>
@@ -745,8 +745,8 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">密碼 (Password)</label>
-          <input v-model="authForm.password" required type="password" placeholder="輸入密碼" 
+          <label class="block text-xs font-bold text-slate-600 mb-1">Pin (Password)</label>
+          <input v-model="authForm.password" required type="password" placeholder="輸入Pin" 
                  class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-brand-orange outline-none">
         </div>
 
@@ -772,20 +772,20 @@
         <i class="fa-solid fa-xmark"></i>
       </button>
 
-      <h3 class="text-lg font-black text-brand-navy mb-1">修改球員個人密碼</h3>
+      <h3 class="text-lg font-black text-brand-navy mb-1">修改球員個人Pin</h3>
       <p class="text-xs text-slate-400 mb-4">同步更新至 Google 試算表</p>
 
       <form @submit.prevent="submitPasswordChange" class="space-y-3">
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">舊密碼</label>
+          <label class="block text-xs font-bold text-slate-600 mb-1">舊Pin</label>
           <input v-model="passwordForm.oldPassword" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">新密碼</label>
+          <label class="block text-xs font-bold text-slate-600 mb-1">新Pin</label>
           <input v-model="passwordForm.newPassword" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">確認新密碼</label>
+          <label class="block text-xs font-bold text-slate-600 mb-1">確認新Pin</label>
           <input v-model="passwordForm.confirmPassword" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
         </div>
 
@@ -806,21 +806,21 @@
       </button>
 
       <h3 class="text-lg font-black text-brand-navy mb-1 flex items-center gap-2">
-        <i class="fa-solid fa-shield-halved text-brand-orange"></i> 變更 Admin 管理員密碼
+        <i class="fa-solid fa-shield-halved text-brand-orange"></i> 變更 Admin 管理員Pin
       </h3>
       <p class="text-xs text-slate-400 mb-4">修改後將儲存至 Google 試算表</p>
 
       <form @submit.prevent="submitAdminPasswordChange" class="space-y-3">
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">目前管理密碼</label>
+          <label class="block text-xs font-bold text-slate-600 mb-1">目前管理Pin</label>
           <input v-model="adminPasswordModal.oldPass" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">新管理密碼</label>
+          <label class="block text-xs font-bold text-slate-600 mb-1">新管理Pin</label>
           <input v-model="adminPasswordModal.newPass" required type="password" placeholder="至少 4 個字元" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">確認新管理密碼</label>
+          <label class="block text-xs font-bold text-slate-600 mb-1">確認新管理Pin</label>
           <input v-model="adminPasswordModal.confirmPass" required type="password" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
         </div>
 
@@ -841,7 +841,7 @@
       </button>
 
       <h3 class="text-lg font-black text-brand-navy mb-1 flex items-center gap-1.5">
-        <i class="fa-solid fa-user-pen text-brand-orange"></i> 重設球員密碼
+        <i class="fa-solid fa-user-pen text-brand-orange"></i> 重設球員Pin
       </h3>
       <p class="text-xs text-slate-400 mb-4" v-if="resetPlayerModal.player">
         為 <strong class="text-brand-orange font-bold">#{{ resetPlayerModal.player.jerseyNumber }} {{ resetPlayerModal.player.name }}</strong> 設定新密碼
@@ -849,8 +849,8 @@
 
       <form @submit.prevent="submitResetPlayerPassword" class="space-y-3">
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">新設定密碼</label>
-          <input v-model="resetPlayerModal.newPass" required type="password" placeholder="請輸入欲指派的新密碼" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
+          <label class="block text-xs font-bold text-slate-600 mb-1">新設定Pin</label>
+          <input v-model="resetPlayerModal.newPass" required type="password" placeholder="請輸入欲指派的新Pin" class="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-blue">
         </div>
 
         <p v-if="resetPlayerModal.error" class="text-xs text-red-500 font-bold">{{ resetPlayerModal.error }}</p>
@@ -876,10 +876,10 @@
 
       // 預設備份資料 (當未設定網址時顯示)
       const siteConfig = ref({
-        teamNameMain: 'TWGHs',
+        teamNameMain: 'TeamEasy',
         teamNameHighlight: 'BASKETBALL',
-        subTitle: '東華三院籃球隊 出勤與管理系統',
-        browserTitle: '東華三院籃球隊 TWGHs Basketball Team | 簽到及出勤管理系統'
+        subTitle: 'Team Easy 籃球隊 出勤與管理系統',
+        browserTitle: 'Team Easy 籃球隊  Basketball Team | 簽到及出勤管理系統'
       });
       const siteConfigForm = ref({ ...siteConfig.value });
       const adminMasterPassword = ref('admin123');
@@ -896,7 +896,7 @@
 
       // --- Google 試算表 API 串接函式 ---
       const fetchGoogleData = async () => {
-        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("請將你剛才複製")) {
+        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnRIhQXnj2C5OmRl-yzCGKFgpQgmeqn9WJTjXWHSXx-yRwNzmM87aDEDa3spsNEbfO5X9gCZduTPT26f292OwgD_QLzcKGX6JpmWfk5QDhGygELzyrzm9kjmGc-rB3rw-OKffdPw3DZSmi-G9SUWDBaGmH8neoC67Zhl7CGe7HbM-EdHD5fTlVNNV4YgQizlN6DH1AcE3A6BB1eBEjhg3Kkgi45WLBLVppQJ14XfpD4RZBjUtFGshhl6pOOaVVQscuQbekAs9pYWy2pr0wUM5t9IlN99sg&lib=M_mAZ23aMHnf4qk_x-SA5-aG_8FgXWkMu")) {
           console.warn("⚠️ 尚未設定 GOOGLE_SCRIPT_URL，將使用離線展示數據。");
           return;
         }
@@ -913,8 +913,8 @@
               siteConfig.value = {
                 teamNameMain: json.data.config.teamNameMain || 'TWGHs',
                 teamNameHighlight: json.data.config.teamNameHighlight || 'BASKETBALL',
-                subTitle: json.data.config.subTitle || '東華三院籃球隊 出勤與管理系統',
-                browserTitle: json.data.config.browserTitle || '東華三院籃球隊'
+                subTitle: json.data.config.subTitle || 'Team Easy 出勤與管理系統',
+                browserTitle: json.data.config.browserTitle || 'Team Easy籃球隊'
               };
               siteConfigForm.value = { ...siteConfig.value };
               if (json.data.config.adminPassword) {
@@ -929,22 +929,29 @@
         }
       };
 
+      // 替換 index.html 內的 postGoogleAction
       const postGoogleAction = async (action, data = {}) => {
-        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("請將你剛才複製")) {
-          return { success: true }; // 離線模擬
-        }
+        if (!GOOGLE_SCRIPT_URL) return { success: true };
 
         isLoading.value = true;
         try {
-          const res = await fetch(GOOGLE_SCRIPT_URL, {
+          // 💡 關鍵修復：加入 mode: 'no-cors'，徹底繞過 Google 轉址與 CORS 阻擋！
+          await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
+            mode: 'no-cors',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            },
             body: JSON.stringify({ action, ...data })
           });
-          const json = await res.json();
-          await fetchGoogleData(); // 操作完畢後重新抓取最新資料庫
-          return json;
+
+          // 等待 1.5 秒讓 Google 試算表完成寫入，然後重新下載最新名單
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          await fetchGoogleData(); 
+          return { success: true };
         } catch (e) {
           console.error("寫入 Google 試算表失敗:", e);
+          alert("連線 Google 失敗！請確保 Apps Script 部署權限為「所有人 (Anyone)」。");
           return { success: false };
         } finally {
           isLoading.value = false;
@@ -1122,7 +1129,7 @@
         if (authModal.value.mode === 'login') {
           const user = members.value.find(m => String(m.staffId).toUpperCase() === cleanStaffId);
           if (!user || String(user.password) !== String(authForm.value.password)) {
-            authError.value = '職員編號或密碼不正確！';
+            authError.value = '球員編號或Pin不正確！';
             return;
           }
           if (user.status === 'inactive') {
@@ -1173,15 +1180,15 @@
       const submitPasswordChange = async () => {
         if (!currentMember.value) return;
         if (passwordForm.value.oldPassword !== currentMember.value.password) {
-          passwordError.value = '目前舊密碼錯誤！';
+          passwordError.value = '目前舊Pin錯誤！';
           return;
         }
         if (passwordForm.value.newPassword.length < 4) {
-          passwordError.value = '新密碼至少需 4 個字符！';
+          passwordError.value = 'Pin至少需 4 個字符！';
           return;
         }
         if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
-          passwordError.value = '兩次輸入的新密碼不一致！';
+          passwordError.value = '兩次輸入的新Pin不一致！';
           return;
         }
 
@@ -1192,7 +1199,7 @@
 
         currentMember.value.password = passwordForm.value.newPassword;
         passwordModal.value.show = false;
-        alert('密碼已成功更新至 Google 試算表！');
+        alert('Pin已成功更新至 Google 試算表！');
       };
 
       const exportCSV = () => {
@@ -1213,7 +1220,7 @@
           adminError.value = '';
           adminPassInput.value = '';
         } else {
-          adminError.value = '管理員密碼錯誤！';
+          adminError.value = '管理員Pin錯誤！';
         }
       };
 
@@ -1238,15 +1245,15 @@
 
       const submitAdminPasswordChange = async () => {
         if (String(adminPasswordModal.value.oldPass) !== String(adminMasterPassword.value)) {
-          adminPasswordModal.value.error = '目前管理密碼不正確！';
+          adminPasswordModal.value.error = '目前管理Pin不正確！';
           return;
         }
         if (adminPasswordModal.value.newPass.length < 4) {
-          adminPasswordModal.value.error = '新密碼至少需要 4 個字元！';
+          adminPasswordModal.value.error = '新Pin至少需要 4 個字元！';
           return;
         }
         if (adminPasswordModal.value.newPass !== adminPasswordModal.value.confirmPass) {
-          adminPasswordModal.value.error = '兩次輸入的新管理密碼不相符！';
+          adminPasswordModal.value.error = '兩次輸入的新管理Pin不相符！';
           return;
         }
 
@@ -1258,7 +1265,7 @@
           }
         });
         adminPasswordModal.value.show = false;
-        alert('🎉 Admin 管理密碼修改成功並已存入 Google 試算表！');
+        alert('🎉 Admin 管理Pin修改成功並已存入 Google 試算表！');
       };
 
       const openResetPlayerPassword = (player) => {
@@ -1267,7 +1274,7 @@
 
       const submitResetPlayerPassword = async () => {
         if (!resetPlayerModal.value.newPass || resetPlayerModal.value.newPass.length < 4) {
-          resetPlayerModal.value.error = '新密碼長度至少需 4 個字元！';
+          resetPlayerModal.value.error = '新Pin長度至少需 4 個字元！';
           return;
         }
 
@@ -1276,7 +1283,7 @@
           newPassword: resetPlayerModal.value.newPass
         });
 
-        alert(`已成功為球員重設密碼！`);
+        alert(`已成功為球員重設Pin！`);
         resetPlayerModal.value.show = false;
       };
 
